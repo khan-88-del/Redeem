@@ -140,7 +140,7 @@ HTML_TEMPLATE = """
   </div>
 
   <script>
-    const cardValues = [100, 200, 250, 300, 400, 500, 600, 750, 800, 1000];
+    const cardValues = [1000, 2000, 2500, 3000, 4000, 5000, 6000, 7500, 8000, 10000];
     let selectedOrder = null;
     let currentOrderId = null;
     let adminToken = "";
