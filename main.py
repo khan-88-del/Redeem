@@ -8,7 +8,7 @@ ADMIN_PIN = "809047"
 orders = []
 
 # Permanent Default UPI ID (Server restart hone par bhi hamesha active rahegi)
-DEFAULT_UPI = "itsmeatifkhan809047@okicici"
+DEFAULT_UPI = "6387982416-oa1b@axl"
 config = {
     "upi_id": DEFAULT_UPI
 }
