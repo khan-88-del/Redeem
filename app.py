@@ -9,9 +9,8 @@ app = Flask(__name__)
 
 ADMIN_PIN = "809047"
 
-# Cloud Storage (In-memory structures)
 orders = []
-users_db = {}  # Format: { "email": { "phone": "...", "registered_at": "...", "orders": [] } }
+users_db = {}
 
 DEFAULT_UPI = "6387982416-oa1b@axl"
 config = {
@@ -51,29 +50,29 @@ ADMIN_PANEL_HTML = """
 </head>
 <body class="bg-[#050811] text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
 
-  <!-- LOCK SCREEN (WEBSITE OPENS WITH THIS PIN LOCK) -->
+  <!-- LOCK SCREEN (No Form Tag to prevent auto-refresh) -->
   <div id="lockScreen" class="fixed inset-0 bg-[#050811] z-50 flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
       <div class="w-16 h-16 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl font-bold">
         🔒
       </div>
       <h2 class="text-xl font-bold text-white mb-1">PayVoucher Control Hub</h2>
-      <p class="text-xs text-slate-400 mb-6">Restricted Merchant Console. Enter Master PIN to continue.</p>
+      <p class="text-xs text-slate-400 mb-6">Restricted Merchant Console. Enter Master PIN.</p>
 
-      <form onsubmit="unlockPanel(event)" class="space-y-4">
-        <input type="password" id="pinInput" autofocus required placeholder="Enter Admin PIN" 
+      <div class="space-y-4">
+        <input type="password" id="pinInput" autofocus placeholder="Enter Admin PIN" 
+          onkeydown="if(event.key==='Enter') unlockPanel()"
           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-center text-white text-lg tracking-widest font-mono focus:outline-none focus:border-blue-500 transition" />
         <p id="lockError" class="text-rose-400 text-xs hidden"></p>
-        <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-white text-sm transition shadow-lg shadow-blue-600/30">
+        <button type="button" onclick="unlockPanel()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-white text-sm transition shadow-lg shadow-blue-600/30">
           Unlock System
         </button>
-      </form>
+      </div>
     </div>
   </div>
 
   <!-- AUTHENTICATED ADMIN DASHBOARD -->
   <div id="adminApp" class="hidden">
-    <!-- Top Navigation -->
     <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-3">
@@ -101,7 +100,6 @@ ADMIN_PANEL_HTML = """
       
       <!-- Metrics & UPI Bar -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Metric 1: Orders -->
         <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-medium uppercase">Total Transactions</p>
@@ -110,7 +108,6 @@ ADMIN_PANEL_HTML = """
           <div class="w-11 h-11 bg-blue-500/10 rounded-xl text-blue-400 flex items-center justify-center text-xl font-bold">#</div>
         </div>
 
-        <!-- Metric 2: Users Linked -->
         <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-medium uppercase">Registered Cloud Users</p>
@@ -119,7 +116,6 @@ ADMIN_PANEL_HTML = """
           <div class="w-11 h-11 bg-emerald-500/10 rounded-xl text-emerald-400 flex items-center justify-center text-xl font-bold">@</div>
         </div>
 
-        <!-- Metric 3: Active UPI Config -->
         <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
           <div class="flex items-center justify-between mb-2">
             <span class="text-xs text-slate-400 font-medium uppercase">Active UPI Handle</span>
@@ -181,29 +177,48 @@ ADMIN_PANEL_HTML = """
   </div>
 
   <script>
-    let masterPin = "";
+    let masterPin = sessionStorage.getItem("admin_pin") || "";
     let cachedData = { orders: [], users: {}, upi_id: "" };
 
-    function unlockPanel(e) {
-      e.preventDefault();
-      const pin = document.getElementById('pinInput').value.trim();
+    // Auto-unlock if already logged in session
+    window.addEventListener("DOMContentLoaded", () => {
+      if (masterPin === "809047") {
+        showDashboard();
+      }
+    });
+
+    function showDashboard() {
+      document.getElementById('lockScreen').classList.add('hidden');
+      document.getElementById('adminApp').classList.remove('hidden');
+      loadDashboard();
+      if (!window.ledgerInterval) {
+        window.ledgerInterval = setInterval(loadDashboard, 3000);
+      }
+    }
+
+    function unlockPanel() {
+      const pinInput = document.getElementById('pinInput');
+      const pin = pinInput.value.trim();
       const err = document.getElementById('lockError');
 
       if (pin === "809047") {
         masterPin = pin;
+        sessionStorage.setItem("admin_pin", pin);
         err.classList.add('hidden');
-        document.getElementById('lockScreen').classList.add('hidden');
-        document.getElementById('adminApp').classList.remove('hidden');
-        loadDashboard();
-        setInterval(loadDashboard, 3000); // 3-second live refresh
+        showDashboard();
       } else {
-        err.innerText = "Access Denied: Invalid Master PIN";
+        err.innerText = "Access Denied: Galat PIN";
         err.classList.remove('hidden');
       }
     }
 
     function lockSystem() {
       masterPin = "";
+      sessionStorage.removeItem("admin_pin");
+      if (window.ledgerInterval) {
+        clearInterval(window.ledgerInterval);
+        window.ledgerInterval = null;
+      }
       document.getElementById('pinInput').value = "";
       document.getElementById('adminApp').classList.add('hidden');
       document.getElementById('lockScreen').classList.remove('hidden');
@@ -213,18 +228,24 @@ ADMIN_PANEL_HTML = """
       if (!masterPin) return;
       try {
         const res = await fetch(`/api/admin/ledger?pin=${masterPin}`);
-        if (res.status === 401) {
-          lockSystem();
-          return;
-        }
+        if (!res.ok) return;
+
         cachedData = await res.json();
-        document.getElementById('statTotalOrders').innerText = cachedData.orders.length;
-        document.getElementById('statTotalUsers').innerText = Object.keys(cachedData.users).length;
-        if (document.activeElement !== document.getElementById('upiInput')) {
-          document.getElementById('upiInput').value = cachedData.upi_id;
+        
+        const orderEl = document.getElementById('statTotalOrders');
+        const userEl = document.getElementById('statTotalUsers');
+        const upiEl = document.getElementById('upiInput');
+
+        if (orderEl) orderEl.innerText = (cachedData.orders || []).length;
+        if (userEl) userEl.innerText = Object.keys(cachedData.users || {}).length;
+        if (upiEl && document.activeElement !== upiEl) {
+          upiEl.value = cachedData.upi_id || '';
         }
+        
         renderData();
-      } catch (_) {}
+      } catch (err) {
+        console.error("Dashboard error:", err);
+      }
     }
 
     function renderData() {
@@ -369,7 +390,6 @@ def create_order():
     }
     orders.insert(0, order)
 
-    # Sync into User Profile database
     if email not in users_db:
         users_db[email] = {
             "phone": phone,
