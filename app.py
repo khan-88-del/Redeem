@@ -11,7 +11,7 @@ import urllib.request
 
 app = Flask(__name__)
 
-ADMIN_PIN = "809047"
+ACTION_PIN = "809047"
 
 # ----------------- CLOUDINARY CONFIGURATION -----------------
 cloudinary.config(
@@ -59,11 +59,10 @@ def load_from_cloudinary():
                 orders = data.get("orders", [])
                 users_db = data.get("users", {})
                 config["upi_id"] = data.get("upi_id", DEFAULT_UPI)
-                print("[Cloudinary]: Data restored successfully.")
+                print("[Cloudinary]: Data loaded successfully.")
     except Exception as e:
-        print(f"[Cloudinary Init Warning]: Cloud ledger fresh ya unavailable hai: {e}")
+        print(f"[Cloudinary Init Warning]: {e}")
 
-# Initial restore on server boot
 load_from_cloudinary()
 
 def verify_email_existence(email):
@@ -86,7 +85,7 @@ ADMIN_PANEL_HTML = """
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PayVoucher Hub | Cloud Management Console</title>
+  <title>PayVoucher Hub | Live Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -96,221 +95,122 @@ ADMIN_PANEL_HTML = """
 </head>
 <body class="bg-[#050811] text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
 
-  <!-- LOCK SCREEN -->
-  <div id="lockScreen" class="fixed inset-0 bg-[#050811] z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
-      <div class="w-16 h-16 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl font-bold">
-        🔒
+  <!-- TOP HEADER -->
+  <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-600/30">
+          ⚡
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-white flex items-center gap-2">
+            PayVoucher Live Console
+            <span class="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">CLOUDINARY ACTIVE</span>
+          </h1>
+          <p class="text-[11px] text-slate-400">Order Management & Customer Ledger</p>
+        </div>
       </div>
-      <h2 class="text-xl font-bold text-white mb-1">PayVoucher Control Hub</h2>
-      <p class="text-xs text-slate-400 mb-6">Restricted Merchant Console. Enter Master PIN.</p>
-
-      <div class="space-y-4">
-        <input type="password" id="pinInput" autofocus placeholder="Enter Admin PIN" 
-          onkeydown="if(event.key==='Enter') unlockPanel()"
-          class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-center text-white text-lg tracking-widest font-mono focus:outline-none focus:border-blue-500 transition" />
-        <p id="lockError" class="text-rose-400 text-xs hidden"></p>
-        <button type="button" onclick="unlockPanel()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-white text-sm transition shadow-lg shadow-blue-600/30">
-          Unlock System
+      <div class="flex items-center gap-2">
+        <button onclick="loadDashboard()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+          ↻ Refresh
         </button>
       </div>
     </div>
-  </div>
+  </header>
 
-  <!-- AUTHENTICATED ADMIN DASHBOARD -->
-  <div id="adminApp" class="hidden" style="display: none;">
-    <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-blue-600/30">
-            ⚡
-          </div>
-          <div>
-            <h1 class="text-base font-bold text-white flex items-center gap-2">
-              PayVoucher Cloud Ledger
-              <span class="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">CLOUDINARY SYNCED</span>
-            </h1>
-            <p class="text-[11px] text-slate-400">Mobile Client Central Controller</p>
-          </div>
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    
+    <!-- STATS & UPI CONFIG -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400 font-medium uppercase">Total Orders</p>
+          <h3 id="statTotalOrders" class="text-2xl font-black text-white mt-1">0</h3>
         </div>
+        <div class="w-11 h-11 bg-blue-500/10 rounded-xl text-blue-400 flex items-center justify-center text-xl font-bold">#</div>
+      </div>
 
-        <div class="flex items-center gap-3">
-          <button onclick="lockSystem()" class="text-xs text-slate-400 hover:text-rose-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 transition">
-            Lock Console
+      <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-400 font-medium uppercase">Linked Customers</p>
+          <h3 id="statTotalUsers" class="text-2xl font-black text-emerald-400 mt-1">0</h3>
+        </div>
+        <div class="w-11 h-11 bg-emerald-500/10 rounded-xl text-emerald-400 flex items-center justify-center text-xl font-bold">@</div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-slate-400 font-medium uppercase">Active Merchant UPI</span>
+          <span class="text-[10px] text-emerald-400 font-mono">Protected</span>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="upiInput" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono" />
+          <button onclick="saveUPI()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition">
+            Save
           </button>
         </div>
       </div>
-    </header>
+    </div>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <!-- SEARCH BAR & FILTER -->
+    <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div class="relative w-full sm:w-96">
+        <input type="text" id="searchInput" oninput="renderData()" placeholder="Search by customer email..."
+          class="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono" />
+        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
       
-      <!-- Metrics & UPI Bar -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400 font-medium uppercase">Total Transactions</p>
-            <h3 id="statTotalOrders" class="text-2xl font-black text-white mt-1">0</h3>
-          </div>
-          <div class="w-11 h-11 bg-blue-500/10 rounded-xl text-blue-400 flex items-center justify-center text-xl font-bold">#</div>
-        </div>
-
-        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p class="text-xs text-slate-400 font-medium uppercase">Registered Cloud Users</p>
-            <h3 id="statTotalUsers" class="text-2xl font-black text-emerald-400 mt-1">0</h3>
-          </div>
-          <div class="w-11 h-11 bg-emerald-500/10 rounded-xl text-emerald-400 flex items-center justify-center text-xl font-bold">@</div>
-        </div>
-
-        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-slate-400 font-medium uppercase">Active UPI Handle</span>
-            <span class="text-[10px] text-emerald-400 font-mono">20% Gateway</span>
-          </div>
-          <div class="flex gap-2">
-            <input type="text" id="upiInput" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono" />
-            <button onclick="saveUPI()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition">
-              Save
-            </button>
-          </div>
-        </div>
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <select id="statusFilter" onchange="renderData()" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300">
+          <option value="ALL">All Statuses</option>
+          <option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved (Timer Active)</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
       </div>
+    </div>
 
-      <!-- Search & Filters -->
-      <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div class="relative w-full sm:w-96">
-          <input type="text" id="searchInput" oninput="renderData()" placeholder="Search customer email, phone, or order ID..."
-            class="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono" />
-          <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
-        </div>
-        
-        <div class="flex items-center gap-2 w-full sm:w-auto">
-          <select id="statusFilter" onchange="renderData()" class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300">
-            <option value="ALL">All Statuses</option>
-            <option value="PENDING">Pending Verification</option>
-            <option value="APPROVED">Approved (In Timer)</option>
-            <option value="REJECTED">Rejected</option>
-          </select>
-        </div>
+    <!-- ORDERS LEDGER TABLE -->
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-semibold">
+            <tr>
+              <th class="p-3.5">Time</th>
+              <th class="p-3.5">Customer Email & Phone</th>
+              <th class="p-3.5">Card</th>
+              <th class="p-3.5">Denomination</th>
+              <th class="p-3.5">Paid (20%)</th>
+              <th class="p-3.5">Status</th>
+              <th class="p-3.5 text-right">Actions (Pin Protected)</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody" class="divide-y divide-slate-800/60 font-mono"></tbody>
+        </table>
       </div>
-
-      <!-- Main Ledger Table -->
-      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-semibold">
-              <tr>
-                <th class="p-3.5">Timestamp</th>
-                <th class="p-3.5">Customer Identity</th>
-                <th class="p-3.5">Card & Network</th>
-                <th class="p-3.5">Denomination</th>
-                <th class="p-3.5">Paid (20%)</th>
-                <th class="p-3.5">Status</th>
-                <th class="p-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="ordersTableBody" class="divide-y divide-slate-800/60 font-mono"></tbody>
-          </table>
-        </div>
-        <div id="emptyNotice" class="hidden py-12 text-center text-slate-500 text-xs">
-          Koi record nahi mila.
-        </div>
+      <div id="emptyNotice" class="hidden py-12 text-center text-slate-500 text-xs">
+        Koi record nahi mila.
       </div>
+    </div>
 
-    </main>
-  </div>
+  </main>
 
   <script>
-    let masterPin = "";
     let cachedData = { orders: [], users: {}, upi_id: "" };
 
-    function unlockPanel() {
-      const pinInput = document.getElementById('pinInput');
-      const pin = pinInput.value.trim();
-      const err = document.getElementById('lockError');
-
-      if (pin === "809047") {
-        masterPin = pin;
-        
-        try {
-          sessionStorage.setItem("admin_pin", pin);
-        } catch (e) {
-          console.warn("Storage not available, continuing in memory");
-        }
-
-        err.classList.add('hidden');
-        
-        // Immediate UI Unlock
-        const lockEl = document.getElementById('lockScreen');
-        const appEl = document.getElementById('adminApp');
-        
-        if (lockEl) lockEl.style.display = 'none';
-        if (appEl) {
-          appEl.classList.remove('hidden');
-          appEl.style.display = 'block';
-        }
-
-        loadDashboard();
-        
-        if (!window.ledgerInterval) {
-          window.ledgerInterval = setInterval(loadDashboard, 3000);
-        }
-      } else {
-        err.innerText = "Access Denied: Galat PIN daala hai!";
-        err.classList.remove('hidden');
-        pinInput.value = "";
-        pinInput.focus();
-      }
-    }
-
-    window.addEventListener("DOMContentLoaded", () => {
-      try {
-        const saved = sessionStorage.getItem("admin_pin");
-        if (saved === "809047") {
-          document.getElementById('pinInput').value = saved;
-          unlockPanel();
-        }
-      } catch (_) {}
-    });
-
-    function lockSystem() {
-      masterPin = "";
-      try {
-        sessionStorage.removeItem("admin_pin");
-      } catch (_) {}
-      
-      if (window.ledgerInterval) {
-        clearInterval(window.ledgerInterval);
-        window.ledgerInterval = null;
-      }
-      
-      document.getElementById('pinInput').value = "";
-      const lockEl = document.getElementById('lockScreen');
-      const appEl = document.getElementById('adminApp');
-      
-      if (appEl) {
-        appEl.classList.add('hidden');
-        appEl.style.display = 'none';
-      }
-      if (lockEl) lockEl.style.display = 'flex';
-    }
-
     async function loadDashboard() {
-      if (!masterPin) return;
       try {
-        const res = await fetch(`/api/admin/ledger?pin=${masterPin}`);
+        const res = await fetch('/api/admin/public-ledger');
         if (!res.ok) return;
 
         cachedData = await res.json();
         
-        const orderEl = document.getElementById('statTotalOrders');
-        const userEl = document.getElementById('statTotalUsers');
+        document.getElementById('statTotalOrders').innerText = (cachedData.orders || []).length;
+        document.getElementById('statTotalUsers').innerText = Object.keys(cachedData.users || {}).length;
+        
         const upiEl = document.getElementById('upiInput');
-
-        if (orderEl) orderEl.innerText = (cachedData.orders || []).length;
-        if (userEl) userEl.innerText = Object.keys(cachedData.users || {}).length;
         if (upiEl && document.activeElement !== upiEl) {
           upiEl.value = cachedData.upi_id || '';
         }
@@ -376,10 +276,10 @@ ADMIN_PANEL_HTML = """
             <td class="p-3.5 text-right whitespace-nowrap">
               <div class="flex items-center justify-end gap-1.5">
                 ${o.status === 'PENDING' ? `
-                  <button onclick="updateOrderStatus('${o.id}', 'APPROVED')" title="Approve & Trigger 1.5h Timer" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold transition">
+                  <button onclick="protectedAction('status', '${o.id}', 'APPROVED')" title="Approve with PIN" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold transition">
                     Approve
                   </button>
-                  <button onclick="updateOrderStatus('${o.id}', 'REJECTED')" title="Reject Payment" class="bg-rose-600/80 hover:bg-rose-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold transition">
+                  <button onclick="protectedAction('status', '${o.id}', 'REJECTED')" title="Reject with PIN" class="bg-rose-600/80 hover:bg-rose-600 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold transition">
                     Reject
                   </button>
                 ` : `
@@ -387,7 +287,7 @@ ADMIN_PANEL_HTML = """
                     WhatsApp
                   </a>
                 `}
-                <button onclick="deleteOrderRecord('${o.id}')" title="Permanently Delete Record" class="bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 px-2 py-1 rounded-lg text-[11px] transition">
+                <button onclick="protectedAction('delete', '${o.id}')" title="Delete with PIN" class="bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 px-2 py-1 rounded-lg text-[11px] transition">
                   ✕
                 </button>
               </div>
@@ -397,36 +297,62 @@ ADMIN_PANEL_HTML = """
       }).join('');
     }
 
-    async function updateOrderStatus(id, status) {
-      await fetch('/api/admin/set-status', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pin: masterPin, id: id, status: status })
-      });
-      loadDashboard();
-    }
+    async function protectedAction(type, id, newStatus = '') {
+      const pin = prompt("Admin PIN enter karein:");
+      if (!pin) return;
 
-    async function deleteOrderRecord(id) {
-      if (!confirm("Are you sure you want to delete this customer record?")) return;
-      await fetch('/api/admin/delete-order', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pin: masterPin, id: id })
-      });
-      loadDashboard();
+      if (type === 'status') {
+        const res = await fetch('/api/admin/set-status', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ pin: pin, id: id, status: newStatus })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          loadDashboard();
+        } else {
+          alert(data.error || "Action failed: Galat PIN!");
+        }
+      } else if (type === 'delete') {
+        const res = await fetch('/api/admin/delete-order', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ pin: pin, id: id })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          loadDashboard();
+        } else {
+          alert(data.error || "Action failed: Galat PIN!");
+        }
+      }
     }
 
     async function saveUPI() {
+      const pin = prompt("UPI change karne ke liye Admin PIN enter karein:");
+      if (!pin) return;
       const upi = document.getElementById('upiInput').value.trim();
       if (!upi) return;
-      await fetch('/api/admin/update-upi', {
+
+      const res = await fetch('/api/admin/update-upi', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ pin: masterPin, upi: upi })
+        body: JSON.stringify({ pin: pin, upi: upi })
       });
-      alert('Active UPI updated to: ' + upi);
-      loadDashboard();
+      const data = await res.json();
+      if (res.ok) {
+        alert('UPI updated to: ' + upi);
+        loadDashboard();
+      } else {
+        alert(data.error || "Galat PIN!");
+      }
     }
+
+    // Load instantly on start
+    window.addEventListener("DOMContentLoaded", () => {
+      loadDashboard();
+      setInterval(loadDashboard, 3000);
+    });
   </script>
 </body>
 </html>
@@ -510,16 +436,14 @@ def order_status():
             return jsonify({"status": o["status"]})
     return jsonify({"status": "NOT_FOUND"})
 
-# ----------------- ADMIN DASHBOARD & SECURITY ROUTES -----------------
+# ----------------- ADMIN DASHBOARD & ACTION ROUTES -----------------
 
 @app.route('/')
 def admin_portal():
     return render_template_string(ADMIN_PANEL_HTML)
 
-@app.route('/api/admin/ledger', methods=['GET'])
-def admin_ledger():
-    if request.args.get("pin") != ADMIN_PIN:
-        return jsonify({"error": "Unauthorized access"}), 401
+@app.route('/api/admin/public-ledger', methods=['GET'])
+def admin_public_ledger():
     return jsonify({
         "orders": orders,
         "users": users_db,
@@ -529,8 +453,8 @@ def admin_ledger():
 @app.route('/api/admin/set-status', methods=['POST'])
 def admin_set_status():
     data = request.json or {}
-    if data.get("pin") != ADMIN_PIN:
-        return jsonify({"error": "Unauthorized"}), 401
+    if data.get("pin") != ACTION_PIN:
+        return jsonify({"error": "Unauthorized: Galat PIN"}), 401
 
     oid = data.get("id")
     new_status = data.get("status")
@@ -552,8 +476,8 @@ def admin_set_status():
 @app.route('/api/admin/delete-order', methods=['POST'])
 def admin_delete_order():
     data = request.json or {}
-    if data.get("pin") != ADMIN_PIN:
-        return jsonify({"error": "Unauthorized"}), 401
+    if data.get("pin") != ACTION_PIN:
+        return jsonify({"error": "Unauthorized: Galat PIN"}), 401
 
     oid = data.get("id")
     global orders
@@ -568,8 +492,8 @@ def admin_delete_order():
 @app.route('/api/admin/update-upi', methods=['POST'])
 def admin_update_upi():
     data = request.json or {}
-    if data.get("pin") != ADMIN_PIN:
-        return jsonify({"error": "Unauthorized"}), 401
+    if data.get("pin") != ACTION_PIN:
+        return jsonify({"error": "Unauthorized: Galat PIN"}), 401
 
     new_upi = data.get("upi", "").strip()
     if new_upi:
