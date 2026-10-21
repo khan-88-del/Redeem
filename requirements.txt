@@ -1,2 +1,5 @@
 flask
+cloudinary
+requests
 gunicorn
+
