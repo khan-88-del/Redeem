@@ -3,35 +3,81 @@ import time
 from datetime import datetime
 import re
 import socket
+import json
 from flask import Flask, request, jsonify, render_template_string
+import cloudinary
+import cloudinary.uploader
+import urllib.request
 
 app = Flask(__name__)
 
 ADMIN_PIN = "809047"
 
+# ----------------- CLOUDINARY CONFIGURATION -----------------
+cloudinary.config(
+    cloud_name="kjt9ntgh",
+    api_key="326313483419766",
+    api_secret="Wpf3m1CGVItwZPQVyn-0AaGEl10",
+    secure=True
+)
+
+LEDGER_PUBLIC_ID = "payvoucher_system/users_ledger"
+
 orders = []
 users_db = {}
-
 DEFAULT_UPI = "6387982416-oa1b@axl"
-config = {
-    "upi_id": DEFAULT_UPI
-}
+config = {"upi_id": DEFAULT_UPI}
+
+def sync_to_cloudinary():
+    """Local ledger ko Cloudinary raw JSON me securely upload karta hai."""
+    try:
+        payload = {
+            "orders": orders,
+            "users": users_db,
+            "upi_id": config["upi_id"],
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        cloudinary.uploader.upload(
+            json.dumps(payload),
+            resource_type="raw",
+            public_id=LEDGER_PUBLIC_ID,
+            overwrite=True,
+            invalidate=True
+        )
+    except Exception as e:
+        print(f"[Cloudinary Sync Error]: {e}")
+
+def load_from_cloudinary():
+    """App start hote hi Cloudinary se pura database restore karta hai."""
+    global orders, users_db, config
+    try:
+        url = cloudinary.utils.cloudinary_url(LEDGER_PUBLIC_ID, resource_type="raw")[0]
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode('utf-8'))
+                orders = data.get("orders", [])
+                users_db = data.get("users", {})
+                config["upi_id"] = data.get("upi_id", DEFAULT_UPI)
+                print("[Cloudinary]: Data restored successfully.")
+    except Exception as e:
+        print(f"[Cloudinary Init Warning]: Cloud ledger fresh ya unavailable hai: {e}")
+
+# Initial restore on server boot
+load_from_cloudinary()
 
 def verify_email_existence(email):
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     if not re.match(email_regex, email):
         return False, "Kripya sahi format ka email daalein."
-    
     domain = email.split('@')[1].lower()
     blocked_domains = ['test.com', 'example.com', 'mailinator.com', 'tempmail.com', 'xyz.com', 'fake.com']
     if domain in blocked_domains:
         return False, "Fake ya temporary email allowed nahi hai."
-    
     try:
         socket.gethostbyname(domain)
     except socket.gaierror:
         return False, "Email domain live exist nahi karta."
-    
     return True, "Valid"
 
 ADMIN_PANEL_HTML = """
@@ -50,7 +96,7 @@ ADMIN_PANEL_HTML = """
 </head>
 <body class="bg-[#050811] text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
 
-  <!-- LOCK SCREEN (No Form Tag to prevent auto-refresh) -->
+  <!-- LOCK SCREEN -->
   <div id="lockScreen" class="fixed inset-0 bg-[#050811] z-50 flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
       <div class="w-16 h-16 bg-blue-600/10 border border-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-5 text-2xl font-bold">
@@ -82,7 +128,7 @@ ADMIN_PANEL_HTML = """
           <div>
             <h1 class="text-base font-bold text-white flex items-center gap-2">
               PayVoucher Cloud Ledger
-              <span class="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">LIVE CLOUD</span>
+              <span class="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">CLOUDINARY SYNCED</span>
             </h1>
             <p class="text-[11px] text-slate-400">Mobile Client Central Controller</p>
           </div>
@@ -133,7 +179,7 @@ ADMIN_PANEL_HTML = """
       <!-- Search & Filters -->
       <div class="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div class="relative w-full sm:w-96">
-          <input type="text" id="searchInput" oninput="renderData()" placeholder="Search by customer email, phone, or order ID..."
+          <input type="text" id="searchInput" oninput="renderData()" placeholder="Search customer email, phone, or order ID..."
             class="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono" />
           <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -180,7 +226,6 @@ ADMIN_PANEL_HTML = """
     let masterPin = sessionStorage.getItem("admin_pin") || "";
     let cachedData = { orders: [], users: {}, upi_id: "" };
 
-    // Auto-unlock if already logged in session
     window.addEventListener("DOMContentLoaded", () => {
       if (masterPin === "809047") {
         showDashboard();
@@ -359,7 +404,7 @@ ADMIN_PANEL_HTML = """
 </html>
 """
 
-# ----------------- FLUTTER APP MOBILE CLIENT ROUTES -----------------
+# ----------------- FLUTTER CLIENT ROUTES -----------------
 
 @app.route('/api/create-order', methods=['POST'])
 def create_order():
@@ -398,6 +443,9 @@ def create_order():
         }
     users_db[email]["orders"].insert(0, order)
 
+    # Cloudinary Background Auto-Sync
+    sync_to_cloudinary()
+
     return jsonify({**order, "upi_id": config["upi_id"]})
 
 @app.route('/api/sync-user', methods=['POST'])
@@ -418,6 +466,8 @@ def sync_user():
         }
     elif phone:
         users_db[email]["phone"] = phone
+
+    sync_to_cloudinary()
 
     return jsonify({
         "status": "SYNCED",
@@ -469,6 +519,7 @@ def admin_set_status():
                 o["status"] = new_status
                 break
 
+    sync_to_cloudinary()
     return jsonify({"success": True})
 
 @app.route('/api/admin/delete-order', methods=['POST'])
@@ -484,6 +535,7 @@ def admin_delete_order():
     for email, profile in users_db.items():
         profile["orders"] = [o for o in profile["orders"] if o["id"] != oid]
 
+    sync_to_cloudinary()
     return jsonify({"success": True})
 
 @app.route('/api/admin/update-upi', methods=['POST'])
@@ -495,6 +547,7 @@ def admin_update_upi():
     new_upi = data.get("upi", "").strip()
     if new_upi:
         config["upi_id"] = new_upi
+        sync_to_cloudinary()
         return jsonify({"success": True, "upi": new_upi})
     return jsonify({"error": "Invalid UPI"}), 400
 
