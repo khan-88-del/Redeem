@@ -1,0 +1,75 @@
+name: Build Godot 4 Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  export_android:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK Tools
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Generate Debug Keystore
+        run: |
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+
+      - name: Install Godot 4.2.2 & Export Templates
+        run: |
+          GODOT_VERSION="4.2.2-stable"
+          
+          # Binary install
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          sudo mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+          # Templates install
+          mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
+          unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
+          rm -f Godot_v${GODOT_VERSION}_export_templates.tpz
+
+      - name: Configure Godot Editor Config
+        run: |
+          mkdir -p ~/.config/godot
+          JAVA_HOME_PATH=$(dirname $(dirname $(readlink -f $(which java))))
+          
+          cat << EOF > ~/.config/godot/editor_settings-4.tres
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_SDK_ROOT"
+          export/android/debug_keystore = "$GITHUB_WORKSPACE/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          export/android/java_sdk_path = "$JAVA_HOME_PATH"
+          export/android/force_system_user = false
+          EOF
+
+      - name: Export APK
+        run: |
+          mkdir -p build/
+          godot --headless --export-debug "Android" build/FreeFireClone.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeFire-Godot-Online-APK
+          path: build/FreeFireClone.apk
+          retention-days: 7
