@@ -1,0 +1,64 @@
+name: Build Godot 4 Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  export_android:
+    runs-on: ubuntu-latest
+    name: Build FreeFire Clone APK
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configure Pre-installed Android SDK Path
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+
+      - name: Accept Android Licenses & Setup Tools
+        run: |
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Setup Debug Keystore
+        run: |
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+
+      - name: Download Godot Engine & Export Templates
+        run: |
+          GODOT_VERSION="4.2.2-stable"
+
+          # 1. Download Headless Godot Linux Binary
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          sudo mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+          # 2. Download Godot Android Export Templates
+          wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
+          mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
+          unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz
+          mv templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
+
+      - name: Export Android APK
+        run: |
+          mkdir -p build/
+          godot --headless --export-debug "Android" build/FreeFireClone.apk
+
+      - name: Upload Game APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeFire-Godot-Online-APK
+          path: build/FreeFireClone.apk
+          retention-days: 7
