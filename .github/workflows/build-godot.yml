@@ -20,11 +20,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android Build Tools
+      - name: Configure Pre-installed Android SDK
         run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          yes | sdkmanager --licenses
           sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
       - name: Setup Debug Keystore
@@ -34,19 +33,20 @@ jobs:
       - name: Download Godot Engine & Export Templates
         run: |
           GODOT_VERSION="4.2.2-stable"
-          # Download Godot Headless Binary
+          
+          # 1. Download Headless Godot Linux Binary
           wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip
-          unzip Godot_v${GODOT_VERSION}_linux.x86_64.zip
-          mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
-          chmod +x /usr/local/bin/godot
+          unzip -q Godot_v${GODOT_VERSION}_linux.x86_64.zip
+          sudo mv Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
 
-          # Download Export Templates
+          # 2. Download Godot Android Export Templates
           wget -q https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
           unzip -q Godot_v${GODOT_VERSION}_export_templates.tpz
           mv templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Export Release APK
+      - name: Export Android APK
         run: |
           mkdir -p build/
           godot --headless --export-debug "Android" build/FreeFireClone.apk
