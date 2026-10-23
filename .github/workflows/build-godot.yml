@@ -1,0 +1,32 @@
+name: Build Godot 4 Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  export_android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.2.2
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Android Debug Keystore
+        run: |
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999
+
+      - name: Export Android APK
+        run: |
+          mkdir -v -p build
+          godot -v --headless --export-debug "Android" build/FreeFireClone.apk
+
+      - name: Upload Game APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FreeFire-Godot-Online-APK
+          path: build/FreeFireClone.apk
+          retention-days: 7
