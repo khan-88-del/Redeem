@@ -38,3 +38,10 @@ window/size/mode=3
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=1
+
+[editor]
+import/fbx/enabled=false
+import/blend/enabled=false
+
+[rendering]
+textures/vram_compression/import_etc2_astc=true
