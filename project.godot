@@ -45,3 +45,11 @@ import/blend/enabled=false
 
 [rendering]
 textures/vram_compression/import_etc2_astc=true
+
+[editor]
+import/reimport_missing_imported_files=false
+export/convert_text_resources_to_binary=true
+
+[filesystem]
+import/fbx/enabled=false
+import/blend/enabled=false
