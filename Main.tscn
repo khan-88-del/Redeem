@@ -18,7 +18,9 @@ sky = SubResource("Sky_sky")
 tonemap_mode = 2
 glow_enabled = true
 
-[node name="Main" type="Node3D"]
+[ext_resource type="Script" path="res://Main.gd" id="1_main_script"]
+
+[node name="Main" type="Node3D" script=ExtResource("1_main_script")]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_world")
