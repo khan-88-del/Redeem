@@ -1,81 +1,94 @@
 extends Node3D
 
 var canvas: CanvasLayer
-var status_label: Label
-var load_thread: Thread
-var map_loaded: bool = false
-var loaded_scene: Node = null
+var status_lbl: Label
+var progress_bar: ProgressBar
 
 func _ready():
-	# Simple safe black loading UI
+	# Clean Loading Screen
 	canvas = CanvasLayer.new()
 	canvas.layer = 999
 	add_child(canvas)
 
 	var bg = ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.08, 0.08, 0.1, 1.0)
+	bg.color = Color(0.04, 0.04, 0.07, 1.0)
 	canvas.add_child(bg)
 
-	status_label = Label.new()
-	status_label.text = "Free Fire Bermuda: Checking files safely..."
-	status_label.position = Vector2(80, 150)
-	status_label.add_theme_font_size_override("font_size", 22)
-	canvas.add_child(status_label)
+	var title = Label.new()
+	title.text = "FREE FIRE: BERMUDA"
+	title.position = Vector2(80, 100)
+	title.add_theme_font_size_override("font_size", 32)
+	canvas.add_child(title)
 
-	# Main thread ko block kiye bina alag thread me load karein
-	load_thread = Thread.new()
-	load_thread.start(_background_loader)
+	status_lbl = Label.new()
+	status_lbl.position = Vector2(80, 180)
+	status_lbl.text = "Initializing Bermuda Package..."
+	status_lbl.add_theme_font_size_override("font_size", 20)
+	canvas.add_child(status_lbl)
 
-func _background_loader():
-	var valid_path = ""
-	var paths = [
-		"/sdcard/Android/obb/com.khan.freefire.bermuda/Bermuda Map 3D Model.glb",
-		"/storage/emulated/0/Android/obb/com.khan.freefire.bermuda/Bermuda Map 3D Model.glb",
-		"/sdcard/Android/obb/com.khan.freefire.bermuda/My project (22)/Bermuda Map 3D Model.glb",
-		"/storage/emulated/0/Android/obb/com.khan.freefire.bermuda/My project (22)/Bermuda Map 3D Model.glb"
-	]
+	progress_bar = ProgressBar.new()
+	progress_bar.position = Vector2(80, 230)
+	progress_bar.size = Vector2(650, 24)
+	progress_bar.value = 10
+	canvas.add_child(progress_bar)
 
-	for p in paths:
-		if FileAccess.file_exists(p):
-			valid_path = p
-			break
+	call_deferred("mount_bermuda_pack")
 
-	if valid_path == "":
-		call_deferred("_update_status", "Error: Bermuda GLB OBB me nahi mila!")
+func mount_bermuda_pack():
+	await get_tree().create_timer(0.4).timeout
+
+	var pck_file = "/storage/emulated/0/Android/obb/com.khan.freefire.bermuda/Bermuda.pck"
+	if not FileAccess.file_exists(pck_file):
+		pck_file = "/sdcard/Android/obb/com.khan.freefire.bermuda/Bermuda.pck"
+
+	if not FileAccess.file_exists(pck_file):
+		status_lbl.text = "Error: Bermuda.pck missing from OBB!"
 		return
 
-	call_deferred("_update_status", "Map mil gaya! RAM safe loading shuru...")
+	status_lbl.text = "Mounting 1.35GB Bermuda Package..."
+	progress_bar.value = 40
+	await get_tree().process_frame
 
-	var gltf = GLTFDocument.new()
-	var state = GLTFState.new()
+	# Native PCK Mount (Safe, Instant, No RAM Freeze)
+	var is_mounted = ProjectSettings.load_resource_pack(pck_file)
 
-	# Safe parsing
-	var err = gltf.append_from_file(valid_path, state)
-	if err == OK:
-		call_deferred("_update_status", "Compiling 3D world meshes...")
-		var scene = gltf.generate_scene(state)
-		call_deferred("_on_load_complete", scene)
-	else:
-		call_deferred("_update_status", "Load Error: " + str(err))
+	if is_mounted:
+		progress_bar.value = 75
+		status_lbl.text = "Package Mounted! Detecting 3D map scene..."
+		await get_tree().create_timer(0.5).timeout
 
-func _update_status(msg: String):
-	if status_label:
-		status_label.text = msg
+		# Pack ke andar ki possible map files check karein
+		var scenes = [
+			"res://BermudaMap.tscn",
+			"res://Map.tscn",
+			"res://Bermuda.tscn",
+			"res://Bermuda Map 3D Model.glb"
+		]
 
-func _on_load_complete(scene_node: Node):
-	if scene_node:
-		scene_node.name = "BermudaMap"
-		add_child(scene_node)
-		map_loaded = true
+		var map_inst = null
+		for sc in scenes:
+			if ResourceLoader.exists(sc):
+				var res = load(sc)
+				if res is PackedScene:
+					map_inst = res.instantiate()
+					break
+				elif res is Node:
+					map_inst = res
+					break
 
+		if map_inst:
+			map_inst.name = "BermudaMap"
+			add_child(map_inst)
+			status_lbl.text = "Map Rendered! Spawning Player..."
+		else:
+			status_lbl.text = "PCK Mounted! Core Assets Ready."
+
+		progress_bar.value = 100
 		if has_node("Player"):
 			$Player.global_position = Vector3(0, 30, 0)
 
-		status_label.text = "Bermuda Map Successfully Loaded!"
-		await get_tree().create_timer(2.0).timeout
+		await get_tree().create_timer(1.5).timeout
 		canvas.queue_free()
-
-func _exit_tree():
-	if load_thread and load_thread.is_started():
-		load_thread.wait_to_finish()
+	else:
+		status_lbl.text = "PCK Mount Error: Header mismatch!"
