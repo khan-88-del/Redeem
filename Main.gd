@@ -2,72 +2,130 @@ extends Node3D
 
 @onready var player = $Player
 
+var canvas: CanvasLayer
+var progress_bar: ProgressBar
+var status_label: Label
+var loading_panel: Panel
+var map_loaded: bool = false
+
 func _ready():
-	# Sabse upar dikhne wala Canvas Layer
-	var canvas = CanvasLayer.new()
-	canvas.layer = 100
+	# Game controls ko loading ke doran hide karein
+	hide_gameplay_ui(true)
+	
+	# Free Fire Style Fullscreen Loading UI setup
+	create_loading_ui()
+	
+	# Background me loading flow chalayein
+	start_game_loading_sequence()
+
+func create_loading_ui():
+	canvas = CanvasLayer.new()
+	canvas.layer = 999
 	add_child(canvas)
 
-	var bg = ColorRect.new()
-	bg.size = Vector2(800, 120)
-	bg.position = Vector2(20, 20)
-	bg.color = Color(0, 0, 0, 0.75)
-	canvas.add_child(bg)
+	loading_panel = Panel.new()
+	loading_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	
+	# Black background theme
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.05, 0.08, 1.0)
+	loading_panel.add_theme_stylebox_override("panel", style)
+	canvas.add_child(loading_panel)
 
-	var lbl = Label.new()
-	lbl.name = "StatusLabel"
-	lbl.position = Vector2(30, 30)
-	lbl.text = "Checking map paths..."
-	lbl.add_theme_font_size_override("font_size", 20)
-	canvas.add_child(lbl)
+	# Title Label
+	var title = Label.new()
+	title.text = "FREE FIRE BERMUDA"
+	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	title.position = Vector2(100, 80)
+	title.add_theme_font_size_override("font_size", 36)
+	loading_panel.add_child(title)
 
-	call_deferred("start_loading_flow", lbl)
+	# Status Label
+	status_label = Label.new()
+	status_label.text = "Checking game assets..."
+	status_label.position = Vector2(100, 260)
+	status_label.add_theme_font_size_override("font_size", 20)
+	loading_panel.add_child(status_label)
 
-func start_loading_flow(lbl: Label):
-	await get_tree().create_timer(0.5).timeout
+	# Progress Bar
+	progress_bar = ProgressBar.new()
+	progress_bar.position = Vector2(100, 310)
+	progress_bar.size = Vector2(700, 30)
+	progress_bar.min_value = 0.0
+	progress_bar.max_value = 100.0
+	progress_bar.value = 5.0
+	loading_panel.add_child(progress_bar)
 
-	var user_data_path = OS.get_user_data_dir()
-	print("User data dir: ", user_data_path)
+func update_progress(val: float, msg: String):
+	if progress_bar:
+		progress_bar.value = val
+	if status_label:
+		status_label.text = msg
+	await get_tree().process_frame
 
-	# Har possible path scan karein (OBB aur Android/data dono)
-	var targets = [
+func hide_gameplay_ui(state: bool):
+	# Agar UI nodes hain to hide/unhide karein
+	for c in get_children():
+		if c is CanvasLayer and c != canvas:
+			c.visible = !state
+		elif c.name in ["TouchScreenButton", "Joystick", "Control"]:
+			c.visible = !state
+
+func start_game_loading_sequence():
+	await update_progress(10.0, "Locating Bermuda OBB & Data packages...")
+	await get_tree().create_timer(1.0).timeout
+
+	var target_paths = [
 		"/sdcard/Android/obb/com.khan.freefire.bermuda/Bermuda Map 3D Model.glb",
 		"/storage/emulated/0/Android/obb/com.khan.freefire.bermuda/Bermuda Map 3D Model.glb",
 		"/sdcard/Android/obb/com.khan.freefire.bermuda/My project (22)/Bermuda Map 3D Model.glb",
 		"/storage/emulated/0/Android/obb/com.khan.freefire.bermuda/My project (22)/Bermuda Map 3D Model.glb",
-		user_data_path + "/Bermuda Map 3D Model.glb",
+		OS.get_user_data_dir() + "/Bermuda Map 3D Model.glb",
 		"user://Bermuda Map 3D Model.glb"
 	]
 
-	var selected_path = ""
-	for p in targets:
+	var valid_path = ""
+	for p in target_paths:
 		if FileAccess.file_exists(p):
-			selected_path = p
+			valid_path = p
 			break
 
-	if selected_path == "":
-		lbl.text = "Error: File nahi mili!\nPath checked in OBB & data folders."
+	if valid_path == "":
+		await update_progress(15.0, "ERROR: Bermuda GLB File not found in OBB or Data!")
 		return
 
-	lbl.text = "Found file at:\n" + selected_path + "\nLoading GLB..."
-	await get_tree().process_frame
+	await update_progress(30.0, "Package Found! Reading 3D Geometry (" + valid_path.get_file() + ")...")
+	await get_tree().create_timer(1.5).timeout
 
 	var gltf = GLTFDocument.new()
 	var state = GLTFState.new()
-	var err = gltf.append_from_file(selected_path, state)
 
-	if err == OK:
-		lbl.text = "Generating 3D Bermuda scene..."
-		await get_tree().process_frame
-		var map_node = gltf.generate_scene(state)
-		map_node.name = "BermudaMap"
-		add_child(map_node)
+	await update_progress(50.0, "Decompressing Meshes & Textures...")
+	await get_tree().create_timer(1.0).timeout
+	
+	var err = gltf.append_from_file(valid_path, state)
+	if err != OK:
+		await update_progress(50.0, "Corrupt File: GLTF Parse Failed code " + str(err))
+		return
 
-		if has_node("Player"):
-			$Player.global_position = Vector3(0, 35, 0)
+	await update_progress(75.0, "Building Collision & Physics World...")
+	await get_tree().create_timer(1.5).timeout
 
-		lbl.text = "Bermuda Map Loaded Successfully!"
-		await get_tree().create_timer(4.0).timeout
-		lbl.get_parent().queue_free()
-	else:
-		lbl.text = "GLTF Load Failed. Error Code: " + str(err)
+	var map_node = gltf.generate_scene(state)
+	map_node.name = "BermudaMap"
+	add_child(map_node)
+	map_loaded = true
+
+	await update_progress(90.0, "Spawning Player Character...")
+	await get_tree().create_timer(1.0).timeout
+
+	if has_node("Player"):
+		$Player.global_position = Vector3(0, 30, 0)
+
+	await update_progress(100.0, "Welcome to Bermuda!")
+	await get_tree().create_timer(1.2).timeout
+
+	# Loading Screen remove karein aur gameplay enable karein
+	loading_panel.visible = false
+	canvas.queue_free()
+	hide_gameplay_ui(false)
