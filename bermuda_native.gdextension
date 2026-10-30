@@ -1,7 +1,0 @@
-[configuration]
-entry_symbol = "bermuda_native_init"
-compatibility_minimum = "4.1"
-
-[libraries]
-android.arm64 = "res://bin/libbermuda_native.android.template_release.arm64.so"
-linux.arm64 = "res://bin/libbermuda_native.linux.arm64.so"
