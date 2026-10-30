@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://bermudamap001"]
+
+[ext_resource type="PackedScene" uid="uid://bermudaglb001" path="res://Bermuda_Mesh.glb" id="1_mesh"]
+
+[node name="BermudaMap" type="Node3D"]
+
+[node name="MapMesh" parent="." instance=ExtResource("1_mesh")]
