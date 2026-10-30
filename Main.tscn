@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://c6y7mainscene"]
 
 [ext_resource type="Script" path="res://Main.gd" id="1_main_script"]
-[ext_resource type="PackedScene" path="res://BermudaMap.tscn" id="2_bermuda_map"]
+[ext_resource type="PackedScene" path="res://Bermuda_Mesh.glb" id="2_bermuda_mesh"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main_script")
@@ -13,4 +13,4 @@ transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 
 transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 40, 60)
 current = true
 
-[node name="BermudaWorld" parent="." instance=ExtResource("2_bermuda_map")]
+[node name="BermudaMap" parent="." instance=ExtResource("2_bermuda_mesh")]

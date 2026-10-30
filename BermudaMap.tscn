@@ -1,7 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8mmapscene"]
-
-[ext_resource type="PackedScene" path="res://Bermuda_Mesh.glb" id="1_mesh"]
-
-[node name="BermudaMap" type="Node3D"]
-
-[node name="IslandMesh" parent="." instance=ExtResource("1_mesh")]
